@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join a Squads session</title>
+<style>
+  :root { --plum:#171021; --card:#251C31; --coral:#FF6B5B; --gold:#FFB454;
+          --text:#FBF4EA; --muted:#A797B8; --field:#1e1729; }
+  * { box-sizing: border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+         background:var(--plum); color:var(--text); margin:0; padding:28px 20px;
+         max-width:460px; margin:0 auto; line-height:1.5; }
+  .brand { color:var(--coral); font-weight:800; letter-spacing:4px; font-size:14px; }
+  h1 { font-size:26px; margin:6px 0 2px; letter-spacing:1px; }
+  .sub { color:var(--muted); font-size:14px; margin-top:0; }
+  .card { background:var(--card); border-radius:18px; padding:20px; margin-top:20px; }
+  label { display:block; font-size:11px; letter-spacing:1px; font-weight:800;
+          color:var(--muted); margin:14px 0 6px; }
+  input, select { width:100%; padding:13px; border:none; border-radius:12px;
+                  background:var(--field); color:var(--text); font-size:16px; }
+  button { width:100%; padding:15px; border:none; border-radius:14px; margin-top:20px;
+           background:var(--coral); color:#fff; font-size:16px; font-weight:800; }
+  button:disabled { opacity:.5; }
+  .msg { text-align:center; padding:30px 10px; }
+  .msg .big { font-size:40px; }
+  .code { color:var(--gold); font-weight:800; letter-spacing:2px; }
+  .hint { color:var(--muted); font-size:12px; margin-top:16px; text-align:center; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+  <div class="brand">SQUADS</div>
+  <h1>Join the session</h1>
+  <p class="sub" id="sub">Add yourself and you'll pop up on the organiser's phone.</p>
+
+  <div class="card" id="loading"><p class="sub" style="text-align:center;margin:8px 0;">Finding session…</p></div>
+
+  <div class="card hidden" id="form">
+    <label>YOUR NAME</label>
+    <input id="name" placeholder="e.g. Connor" autocomplete="name" />
+    <label>YOUR POSITION</label>
+    <select id="position">
+      <option value="Any / Flex">Any / Flex</option>
+      <option value="Outside hitter">Outside hitter</option>
+      <option value="Setter">Setter</option>
+      <option value="Opposite">Opposite</option>
+      <option value="Middle blocker">Middle blocker</option>
+      <option value="Libero">Libero</option>
+    </select>
+    <button id="submit">Join session</button>
+    <p class="hint">No app needed. Free to use.</p>
+  </div>
+
+  <div class="card hidden" id="done">
+    <div class="msg"><div class="big">🏐</div>
+      <p><strong>You're in!</strong></p>
+      <p class="sub">You'll show up on the organiser's phone now. Just head to the court.</p>
+    </div>
+  </div>
+
+  <div class="card hidden" id="notfound">
+    <div class="msg">
+      <p><strong>Session not found</strong></p>
+      <p class="sub">Double-check the code with the organiser, or ask them to show the QR again.</p>
+    </div>
+  </div>
+
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  const SUPABASE_URL = 'https://fsyaiwevmlpdjehukrei.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzeWFpd2V2bWxwZGplaHVrcmVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MDUzNTIsImV4cCI6MjA5OTA4MTM1Mn0.FvYB6kL9-F9DuXVJBZ29IRklJzSbXL84f0aPBwHvnbM';
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const show = (id) => {
+    ['loading','form','done','notfound'].forEach((x) =>
+      document.getElementById(x).classList.toggle('hidden', x !== id));
+  };
+
+  // Code from ?code=XXXX  (or a /join/XXXX style path as a fallback).
+  const params = new URLSearchParams(location.search);
+  let code = (params.get('code') || '').toUpperCase();
+  if (!code) { const m = location.pathname.match(/join\/([A-Z0-9-]{4,8})/i); if (m) code = m[1].toUpperCase(); }
+  document.getElementById('sub').innerHTML = code
+    ? `Session code <span class="code">${code}</span>`
+    : 'No session code in this link.';
+
+  let sessionId = null;
+  (async () => {
+    if (!code) { show('notfound'); return; }
+    const { data } = await supabase.from('sessions').select('id').eq('code', code).maybeSingle();
+    if (!data) { show('notfound'); return; }
+    sessionId = data.id;
+    show('form');
+  })();
+
+  const AV = 8;
+  document.getElementById('submit').addEventListener('click', async () => {
+    const name = document.getElementById('name').value.trim();
+    const position = document.getElementById('position').value;
+    if (!name) { document.getElementById('name').focus(); return; }
+    const btn = document.getElementById('submit');
+    btn.disabled = true; btn.textContent = 'Joining…';
+    const { error } = await supabase.from('session_players').insert({
+      session_id: sessionId,
+      name,
+      positions: [position],
+      position,
+      avatar_color: Math.floor(Math.random() * AV),
+      is_host: false,
+      device_id: 'web',
+    });
+    if (error) { btn.disabled = false; btn.textContent = 'Try again'; return; }
+    show('done');
+  });
+</script>
+</body>
+</html>
