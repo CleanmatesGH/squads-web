@@ -27,6 +27,11 @@
   .code { color:var(--gold); font-weight:800; letter-spacing:2px; }
   .hint { color:var(--muted); font-size:12px; margin-top:16px; text-align:center; }
   .hidden { display:none; }
+  .getapp { background:var(--card); border-radius:18px; padding:18px; margin-top:16px; text-align:center; }
+  .getapp h3 { margin:0 0 4px; font-size:16px; }
+  .getapp p { margin:0 0 14px; font-size:13px; }
+  .appbtn { display:inline-block; background:#fff; color:#000; text-decoration:none;
+            font-weight:800; padding:12px 22px; border-radius:12px; font-size:15px; }
 </style>
 </head>
 <body>
@@ -39,15 +44,11 @@
   <div class="card hidden" id="form">
     <label>YOUR NAME</label>
     <input id="name" placeholder="e.g. Connor" autocomplete="name" />
-    <label>YOUR POSITION</label>
-    <select id="position">
-      <option value="Any / Flex">Any / Flex</option>
-      <option value="Outside hitter">Outside hitter</option>
-      <option value="Setter">Setter</option>
-      <option value="Opposite">Opposite</option>
-      <option value="Middle blocker">Middle blocker</option>
-      <option value="Libero">Libero</option>
-    </select>
+    <label>YOUR POSITIONS — RANKED</label>
+    <select id="pos1"></select>
+    <select id="pos2" style="margin-top:8px"></select>
+    <select id="pos3" style="margin-top:8px"></select>
+    <p class="hint" style="margin-top:8px">1st choice is used first; 2nd &amp; 3rd are fallbacks when teams fill up.</p>
     <button id="submit">Join session</button>
     <p class="hint">No app needed. Free to use.</p>
   </div>
@@ -57,6 +58,12 @@
       <p><strong>You're in!</strong></p>
       <p class="sub">You'll show up on the organiser's phone now. Just head to the court.</p>
     </div>
+  </div>
+
+  <div class="getapp hidden" id="getapp">
+    <h3>Save your progress</h3>
+    <p>Get the free Squads app to keep your profile, stats, badges and match history.</p>
+    <a class="appbtn" id="appstore" href="https://apps.apple.com/app/id6788060994">Download Squads</a>
   </div>
 
   <div class="card hidden" id="notfound">
@@ -76,6 +83,9 @@
   const show = (id) => {
     ['loading','form','done','notfound'].forEach((x) =>
       document.getElementById(x).classList.toggle('hidden', x !== id));
+    // Show the "get the app" prompt on the form and after joining, not while
+    // loading or if the session wasn't found.
+    document.getElementById('getapp').classList.toggle('hidden', !(id === 'form' || id === 'done'));
   };
 
   // Code from ?code=XXXX  (or a /join/XXXX style path as a fallback).
@@ -95,18 +105,32 @@
     show('form');
   })();
 
+  // Populate the three ranked position pickers.
+  const POSITIONS = ['Outside hitter', 'Setter', 'Opposite', 'Middle blocker', 'Libero', 'Any / Flex'];
+  const fill = (id, withNone) => {
+    const el = document.getElementById(id);
+    if (withNone) el.insertAdjacentHTML('beforeend', '<option value="">— none —</option>');
+    POSITIONS.forEach((p) => el.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+  };
+  fill('pos1', false); fill('pos2', true); fill('pos3', true);
+  document.getElementById('pos1').value = 'Any / Flex';
+  document.getElementById('pos2').value = '';
+  document.getElementById('pos3').value = '';
+
   const AV = 8;
   document.getElementById('submit').addEventListener('click', async () => {
     const name = document.getElementById('name').value.trim();
-    const position = document.getElementById('position').value;
     if (!name) { document.getElementById('name').focus(); return; }
+    const picks = ['pos1', 'pos2', 'pos3'].map((id) => document.getElementById(id).value).filter(Boolean);
+    const positions = [...new Set(picks)];
+    if (!positions.length) positions.push('Any / Flex');
     const btn = document.getElementById('submit');
     btn.disabled = true; btn.textContent = 'Joining…';
     const { error } = await supabase.from('session_players').insert({
       session_id: sessionId,
       name,
-      positions: [position],
-      position,
+      positions,
+      position: positions[0],
       avatar_color: Math.floor(Math.random() * AV),
       is_host: false,
       device_id: 'web',
