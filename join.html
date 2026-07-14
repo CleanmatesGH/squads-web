@@ -99,8 +99,14 @@
   let sessionId = null;
   (async () => {
     if (!code) { show('notfound'); return; }
-    const { data } = await supabase.from('sessions').select('id').eq('code', code).maybeSingle();
-    if (!data) { show('notfound'); return; }
+    // Sign in as an anonymous user first: session data is only readable by
+    // authenticated users (incl. anonymous auth) now, not the bare anon key.
+    try { await supabase.auth.signInAnonymously(); } catch (e) { /* older policies: continue */ }
+    const { data } = await supabase
+      .from('sessions').select('id, created_at').eq('code', code).maybeSingle();
+    // Codes get recycled - a session older than 24h is treated as over.
+    const fresh = data && (Date.now() - new Date(data.created_at).getTime() < 24 * 3600 * 1000);
+    if (!data || !fresh) { show('notfound'); return; }
     sessionId = data.id;
     show('form');
   })();
