@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["6AYYTKBJ89.com.squads.app"],
+        "components": [
+          { "/": "/join.html", "comment": "Session invite" },
+          { "/": "/club.html", "comment": "Club invite" }
+        ]
+      }
+    ]
+  }
+}

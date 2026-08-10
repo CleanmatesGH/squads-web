@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Join a Squads session</title>
+<title>Join a SideOut session</title>
 <style>
   :root { --plum:#171021; --card:#251C31; --coral:#FF6B5B; --gold:#FFB454;
           --text:#FBF4EA; --muted:#A797B8; --field:#1e1729; }
@@ -35,7 +35,7 @@
 </style>
 </head>
 <body>
-  <div class="brand">SQUADS</div>
+  <div class="brand">SIDEOUT</div>
   <h1>Join the session</h1>
   <p class="sub" id="sub">Add yourself and you'll pop up on the organiser's phone.</p>
 
@@ -48,7 +48,8 @@
     <select id="pos1"></select>
     <select id="pos2" style="margin-top:8px"></select>
     <select id="pos3" style="margin-top:8px"></select>
-    <p class="hint" style="margin-top:8px">1st choice is used first; 2nd &amp; 3rd are fallbacks when teams fill up.</p>
+    <p class="hint" style="margin-top:8px">All three are required. Your 1st choice is honoured first; 2nd and 3rd are what you'll cover when that slot is taken &mdash; the more you pick, the more you play.</p>
+    <p class="hint" id="poserr" style="color:#E4572E;display:none">Pick three different positions.</p>
     <button id="submit">Join session</button>
     <p class="hint">No app needed. Free to use.</p>
   </div>
@@ -62,8 +63,8 @@
 
   <div class="getapp hidden" id="getapp">
     <h3>Save your progress</h3>
-    <p>Get the free Squads app to keep your profile, stats, badges and match history.</p>
-    <a class="appbtn" id="appstore" href="https://apps.apple.com/app/id6788060994">Download Squads</a>
+    <p>Get the free SideOut app to keep your profile, stats, badges and match history.</p>
+    <a class="appbtn" id="appstore" href="https://apps.apple.com/app/id6788060994">Download SideOut</a>
   </div>
 
   <div class="card hidden" id="notfound">
@@ -96,6 +97,47 @@
     ? `Session code <span class="code">${code}</span>`
     : 'No session code in this link.';
 
+
+  // --- OPEN THE APP IF THEY HAVE IT ------------------------------------------
+  //
+  // Somebody with SideOut installed who scans a QR should end up IN THE APP, in
+  // the session, with their profile and their stats. Landing here instead means
+  // they join as a stranger on the web and nothing they do that night reaches
+  // their level, their win rate or their Best Squad. That's the whole point of
+  // having an account.
+  //
+  // How this works: try the app's own URL scheme. If the app is there, iOS or
+  // Android switches to it and this page is left behind - the timer never
+  // fires. If it isn't, nothing happens, the timer fires, and the web join page
+  // carries on exactly as before. Nobody is ever stuck on a blank screen.
+  //
+  // Skipped when ?web=1 is on the link, so "continue in browser" is always
+  // available and we can't trap someone in a loop.
+  (function tryApp() {
+    const p = new URLSearchParams(location.search);
+    if (p.get('web') === '1' || !code) return;
+
+    // Coming back to this page (back button) must not bounce them out again.
+    if (sessionStorage.getItem('sideout-tried-' + code)) return;
+    sessionStorage.setItem('sideout-tried-' + code, '1');
+
+    const deep = 'sideout://join.html?code=' + encodeURIComponent(code);
+    const started = Date.now();
+
+    // If we're still here a moment later, the app isn't installed.
+    const timer = setTimeout(function () {
+      // A long gap means the device DID switch away and has come back - don't
+      // treat that as a failure.
+      if (Date.now() - started > 2500) return;
+    }, 1200);
+
+    // Leaving the page means it worked.
+    window.addEventListener('pagehide', function () { clearTimeout(timer); });
+    window.addEventListener('blur', function () { clearTimeout(timer); });
+
+    location.href = deep;
+  })();
+
   let sessionId = null;
   (async () => {
     if (!code) { show('notfound'); return; }
@@ -118,10 +160,17 @@
     if (withNone) el.insertAdjacentHTML('beforeend', '<option value="">— none —</option>');
     POSITIONS.forEach((p) => el.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
   };
-  fill('pos1', false); fill('pos2', true); fill('pos3', true);
-  document.getElementById('pos1').value = 'Any / Flex';
-  document.getElementById('pos2').value = '';
-  document.getElementById('pos3').value = '';
+  // THREE POSITIONS, ALL REQUIRED.
+  //
+  // The team generator can only be fair if it knows what people will cover. A
+  // squad where everyone listed one position each is a squad where the same
+  // people sit out every round, because nobody can fill anybody else's slot.
+  // Making all three compulsory is the single biggest thing that makes the
+  // draw fair - so there's no "none" option any more.
+  fill('pos1', false); fill('pos2', false); fill('pos3', false);
+  document.getElementById('pos1').value = 'Outside hitter';
+  document.getElementById('pos2').value = 'Middle blocker';
+  document.getElementById('pos3').value = 'Opposite';
 
   const AV = 8;
   document.getElementById('submit').addEventListener('click', async () => {
@@ -129,7 +178,14 @@
     if (!name) { document.getElementById('name').focus(); return; }
     const picks = ['pos1', 'pos2', 'pos3'].map((id) => document.getElementById(id).value).filter(Boolean);
     const positions = [...new Set(picks)];
-    if (!positions.length) positions.push('Any / Flex');
+    // Three DIFFERENT ones. Picking the same position three times would tell
+    // the generator nothing it didn't already know from the first.
+    const err = document.getElementById('poserr');
+    if (positions.length < 3) {
+      err.style.display = 'block';
+      return;
+    }
+    err.style.display = 'none';
     const btn = document.getElementById('submit');
     btn.disabled = true; btn.textContent = 'Joining…';
     const { error } = await supabase.from('session_players').insert({
