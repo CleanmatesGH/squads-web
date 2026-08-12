@@ -4,7 +4,9 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.squads.app",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_FINGERPRINT_FROM_EAS_CREDENTIALS"]
+      "sha256_cert_fingerprints": [
+        "A4:B1:18:B5:2C:26:F7:2D:3C:B0:4D:30:69:0A:BD:F9:67:CB:81:D2:D1:A1:6B:2A:18:13:30:4C:33:1A:10:64"
+      ]
     }
   }
 ]
